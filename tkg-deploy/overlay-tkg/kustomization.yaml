@@ -1,0 +1,64 @@
+apiVersion: kustomize.config.k8s.io/v1beta1
+kind: Kustomization
+# Reference local copy of https://github.com/mreferre/yelb/blob/master/deployments/platformdeployment/Kubernetes/yaml/yelb-k8s-loadbalancer.yaml
+resources:
+  - ./upstream/yelb-k8s-loadbalancer.yaml
+namespace: yelb-demo # Replace with the namespace you want to target
+
+# If you are in an air gapped environment use this section to link to your harbor images used by Yelb
+# If your deployment environment has internet access comment this section out.
+images:
+  - name: mreferre/yelb-ui
+    newName: harbor.lab.local/vks-yelb/yelb
+    newTag: yelb-ui-0.10
+  - name: mreferre/yelb-db
+    newName: harbor.lab.local/vks-yelb/yelb
+    newTag: yelb-db-0.6
+  - name: mreferre/yelb-appserver
+    newName: harbor.lab.local/vks-yelb/yelb
+    newTag: yelb-appserver-0.7
+  - name: redis
+    newName: harbor.lab.local/vks-yelb/yelb
+    newTag: redis-4.0.2
+
+configMapGenerator:
+  - name: yelb-ui-nginx
+    behavior: create
+    files:
+      - default.conf=./yelb-ui-nginx.conf
+
+patches:
+  - path: ./patch-yelb-ui-deploy.yaml
+    target:
+      kind: Deployment
+      name: yelb-ui
+  - path: ./patch-yelb-ui-svc.yaml
+    target:
+      kind: Service
+      name: yelb-ui
+  - path: ./patch-yelb-db-deploy.yaml
+    target:
+      kind: Deployment
+      name: yelb-db
+  - path: ./patch-yelb-appserver-deploy.yaml
+    target:
+      kind: Deployment
+      name: yelb-appserver
+  - path: ./patch-yelb-redis-deploy.yaml
+    target:
+      kind: Deployment
+      name: redis-server
+  # Comment the below out if you are pulling from a public image and do not need to configure an imagePullSecret to use.
+  - target:
+      kind: Deployment
+      labelSelector: app
+    patch: |-
+      apiVersion: apps/v1
+      kind: Deployment
+      metadata:
+        name: dummy
+      spec:
+        template:
+          spec:
+            imagePullSecrets:
+              - name: regcred

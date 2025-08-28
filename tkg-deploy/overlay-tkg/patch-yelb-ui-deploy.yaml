@@ -1,0 +1,51 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: yelb-ui
+spec:
+  template:
+    spec:
+      # Pod-level security context required values
+      securityContext:
+        runAsNonRoot: true
+        runAsUser: 1001
+        runAsGroup: 1001
+        seccompProfile:
+          type: RuntimeDefault
+      containers:
+      - name: yelb-ui
+        # Use 8080, service will map 80 -> 8080
+        ports:
+        - containerPort: 8080
+        # Override entrypoint to skip the image's sed-in/etc script and allow non root exec
+        command: ["/bin/sh", "-c"]
+        args:
+          - |
+            mkdir -p /var/cache/nginx/client_temp /var/run && \
+            nginx -g 'daemon off;'
+        securityContext:
+          allowPrivilegeEscalation: false
+          readOnlyRootFilesystem: false # nginx needs writable cache/temp
+          runAsNonRoot: true
+          runAsUser: 1001
+          runAsGroup: 1001
+          capabilities:
+            drop: ["ALL"]
+          seccompProfile:
+            type: RuntimeDefault
+        volumeMounts:
+          - name: nginx-cache
+            mountPath: /var/cache/nginx
+          - name: nginx-run
+            mountPath: /var/run
+          - name: nginx-conf
+            mountPath: /etc/nginx/conf.d/default.conf
+            subPath: default.conf
+      volumes:
+        - name: nginx-cache
+          emptyDir: {}
+        - name: nginx-run
+          emptyDir: {}
+        - name: nginx-conf
+          configMap:
+            name: yelb-ui-nginx
